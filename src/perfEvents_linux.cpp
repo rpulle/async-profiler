@@ -16,6 +16,7 @@
 
 #ifdef __linux__
 
+#include <fstream>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -171,6 +172,8 @@ int PerfEvents::_max_events = 0;
 PerfEvent* PerfEvents::_events = NULL;
 PerfEventType* PerfEvents::_event_type = NULL;
 long PerfEvents::_interval;
+long PerfEvents::_threshold;
+jlong PerfEvents::_gc_start;
 
 void PerfEvents::init() {
     _max_events = getMaxPID();
@@ -216,9 +219,6 @@ void PerfEvents::createForThread(int tid) {
     fcntl(fd, F_SETFL, O_ASYNC);
     fcntl(fd, F_SETSIG, SIGPROF);
     fcntl(fd, F_SETOWN_EX, &ex);
-
-    ioctl(fd, PERF_EVENT_IOC_RESET, 0);
-    ioctl(fd, PERF_EVENT_IOC_REFRESH, 1);
 }
 
 void PerfEvents::createForAllThreads() {
@@ -287,13 +287,14 @@ Error PerfEvents::start(const char* event, long interval) {
     if (interval < 0) {
         return Error("interval must be positive");
     }
-    _interval = interval ? interval : _event_type->default_interval;
+    _interval = _event_type->default_interval;
+    _threshold = interval * 1000000;
 
     installSignalHandler();
 
     jvmtiEnv* jvmti = VM::jvmti();
-    jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_THREAD_START, NULL);
-    jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_THREAD_END, NULL);
+    jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_GARBAGE_COLLECTION_START, NULL);
+    jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_GARBAGE_COLLECTION_FINISH, NULL);
 
     createForAllThreads();
     return Error::OK;
@@ -301,8 +302,8 @@ Error PerfEvents::start(const char* event, long interval) {
 
 void PerfEvents::stop() {
     jvmtiEnv* jvmti = VM::jvmti();
-    jvmti->SetEventNotificationMode(JVMTI_DISABLE, JVMTI_EVENT_THREAD_START, NULL);
-    jvmti->SetEventNotificationMode(JVMTI_DISABLE, JVMTI_EVENT_THREAD_END, NULL);
+    jvmti->SetEventNotificationMode(JVMTI_DISABLE, JVMTI_EVENT_GARBAGE_COLLECTION_START, NULL);
+    jvmti->SetEventNotificationMode(JVMTI_DISABLE, JVMTI_EVENT_GARBAGE_COLLECTION_FINISH, NULL);
 
     destroyForAllThreads();
 }
@@ -354,6 +355,47 @@ int PerfEvents::getCallChain(int tid, const void** callchain, int max_depth) {
 
     event->unlock();
     return depth;
+}
+
+void JNICALL PerfEvents::GarbageCollectionStart(jvmtiEnv* jvmti) {
+    jvmti->GetTime(&_gc_start);
+
+    Profiler::_instance.clear();
+
+    // Turn on profiling
+    for (int i = 0; i < _max_events; i++) {
+        int fd = _events[i]._fd;
+        if (fd != 0) {
+            ioctl(fd, PERF_EVENT_IOC_RESET, 0);
+            ioctl(fd, PERF_EVENT_IOC_REFRESH, 1);
+        }
+    }
+}
+
+void JNICALL PerfEvents::GarbageCollectionFinish(jvmtiEnv* jvmti) {
+    // Turn off profiling
+    for (int i = 0; i < _max_events; i++) {
+        int fd = _events[i]._fd;
+        if (fd != 0) {
+            ioctl(fd, PERF_EVENT_IOC_DISABLE, 0);
+        }
+    }
+
+    jlong gc_end;
+    jvmti->GetTime(&gc_end);
+    
+    // Dump profile if stop-the-world GC took too long
+    if (gc_end - _gc_start > _threshold) {
+        char buf[64];
+        sprintf(buf, "/tmp/gc_profile_%08x.txt", (unsigned int)gc_end);
+        std::cout << "GC took " << (gc_end - _gc_start) / 1000000 << " ms. Dumping profile to " << buf << std::endl;
+
+        std::ofstream out(buf, std::ios::out | std::ios::trunc);
+        if (out.is_open()) {
+            Profiler::_instance.dumpCollapsed(out, COUNTER_SAMPLES);
+            out.close();
+        }
+    }
 }
 
 #endif // __linux__

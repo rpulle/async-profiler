@@ -187,6 +187,7 @@ class Profiler {
     void dumpTraces(std::ostream& out, int max_traces);
     void dumpFlat(std::ostream& out, int max_methods);
     void recordSample(void* ucontext, u64 counter, jint event_type, jmethodID event);
+    void clear();
     NativeCodeCache* jvmLibrary();
 
     // CompiledMethodLoad is also needed to enable DebugNonSafepoints info by default

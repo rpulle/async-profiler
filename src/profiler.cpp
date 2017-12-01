@@ -286,10 +286,7 @@ void Profiler::recordSample(void* ucontext, u64 counter, jint event_type, jmetho
     ASGCT_CallFrame* frames = _calltrace_buffer[lock_index];
     int tid = PerfEvents::tid();
 
-    int num_frames = event != NULL ? makeEventFrame(frames, event_type, event) : 0;
-    num_frames += getNativeTrace(tid, frames);
-    num_frames += getJavaTraceAsync(ucontext, frames + num_frames, MAX_STACK_FRAMES - 1 - num_frames);
-
+    int num_frames = getNativeTrace(tid, frames);
     if (_threads) {
         num_frames += makeEventFrame(frames + num_frames, BCI_THREAD_ID, (jmethodID)(uintptr_t)tid);
     }
@@ -300,6 +297,18 @@ void Profiler::recordSample(void* ucontext, u64 counter, jint event_type, jmetho
     }
 
     _locks[lock_index].unlock();
+}
+
+void Profiler::clear() {
+    _total_samples = 0;
+    _total_counter = 0;
+    memset(_failures, 0, sizeof(_failures));
+    memset(_hashes, 0, sizeof(_hashes));
+    memset(_traces, 0, sizeof(_traces));
+    memset(_methods, 0, sizeof(_methods));
+
+    _frame_buffer_index = 0;
+    _frame_buffer_overflow = false;
 }
 
 void Profiler::initStateLock() {
@@ -423,7 +432,7 @@ void Profiler::dumpSummary(std::ostream& out) {
  */
 void Profiler::dumpCollapsed(std::ostream& out, Counter counter) {
     MutexLocker ml(_state_lock);
-    if (_state != IDLE) return;
+    //if (_state != IDLE) return;
 
     FrameName fn;
     u64 unknown = 0;

@@ -31,6 +31,8 @@ class PerfEvents : public Engine {
     static PerfEvent* _events;
     static PerfEventType* _event_type;
     static long _interval;
+    static long _threshold;
+    static jlong _gc_start;
 
     static void createForThread(int tid);
     static void createForAllThreads();
@@ -52,13 +54,8 @@ class PerfEvents : public Engine {
     static const char** getAvailableEvents();
     static int getCallChain(int tid, const void** callchain, int max_depth);
 
-    static void JNICALL ThreadStart(jvmtiEnv* jvmti, JNIEnv* jni, jthread thread) {
-        createForThread(tid());
-    }
-
-    static void JNICALL ThreadEnd(jvmtiEnv* jvmti, JNIEnv* jni, jthread thread) {
-        destroyForThread(tid());
-    }
+    static void JNICALL GarbageCollectionStart(jvmtiEnv* jvmti);
+    static void JNICALL GarbageCollectionFinish(jvmtiEnv* jvmti);
 };
 
 #endif // _PERFEVENTS_H

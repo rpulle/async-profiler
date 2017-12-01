@@ -44,6 +44,7 @@ void VM::init(JavaVM* vm, bool attach) {
     capabilities.can_get_line_numbers = 1;
     capabilities.can_generate_compiled_method_load_events = 1;
     capabilities.can_generate_monitor_events = 1;
+    capabilities.can_generate_garbage_collection_events = 1;
     capabilities.can_tag_objects = 1;
     _jvmti->AddCapabilities(&capabilities);
 
@@ -55,8 +56,8 @@ void VM::init(JavaVM* vm, bool attach) {
     callbacks.CompiledMethodLoad = Profiler::CompiledMethodLoad;
     callbacks.CompiledMethodUnload = Profiler::CompiledMethodUnload;
     callbacks.DynamicCodeGenerated = Profiler::DynamicCodeGenerated;
-    callbacks.ThreadStart = PerfEvents::ThreadStart;
-    callbacks.ThreadEnd = PerfEvents::ThreadEnd;
+    callbacks.GarbageCollectionStart = PerfEvents::GarbageCollectionStart;
+    callbacks.GarbageCollectionFinish = PerfEvents::GarbageCollectionFinish;
     callbacks.MonitorContendedEnter = LockTracer::MonitorContendedEnter;
     callbacks.MonitorContendedEntered = LockTracer::MonitorContendedEntered;
     _jvmti->SetEventCallbacks(&callbacks, sizeof(callbacks));
