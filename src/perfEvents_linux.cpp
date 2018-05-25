@@ -28,7 +28,7 @@
 #include <sys/mman.h>
 #include <sys/syscall.h>
 #include <linux/perf_event.h>
-#include <linux/hw_breakpoint.h>
+//#include <linux/hw_breakpoint.h>
 #include "arch.h"
 #include "perfEvents.h"
 #include "stackFrame.h"
@@ -131,14 +131,14 @@ struct PerfEventType {
         if (c != NULL) {
             *c++ = 0;
             if (strcmp(c, "r") == 0) {
-                bp_type = HW_BREAKPOINT_R;
+        //        bp_type = HW_BREAKPOINT_R;
             } else if (strcmp(c, "w") == 0) {
-                bp_type = HW_BREAKPOINT_W;
+         //       bp_type = HW_BREAKPOINT_W;
             } else if (strcmp(c, "x") == 0) {
-                bp_type = HW_BREAKPOINT_X;
+          //      bp_type = HW_BREAKPOINT_X;
                 bp_len = sizeof(long);
             } else {
-                bp_type = HW_BREAKPOINT_RW;
+           //     bp_type = HW_BREAKPOINT_RW;
             }
         }
 
@@ -172,7 +172,7 @@ struct PerfEventType {
         breakpoint->config = addr + offset;
         breakpoint->bp_type = bp_type;
         breakpoint->bp_len = bp_len;
-        breakpoint->counter_arg = bp_type == HW_BREAKPOINT_X ? findCounterArg(buf) : 0;
+        //breakpoint->counter_arg = bp_type == HW_BREAKPOINT_X ? findCounterArg(buf) : 0;
         return breakpoint;
     }
 
@@ -185,7 +185,7 @@ struct PerfEventType {
     static PerfEventType* forName(const char* name) {
         // Hardware breakpoint
         if (strncmp(name, "mem:", 4) == 0) {
-            return getBreakpoint(name + 4, HW_BREAKPOINT_RW, 1);
+            //return getBreakpoint(name + 4, HW_BREAKPOINT_RW, 1);
         }
 
         // Raw tracepoint ID
@@ -210,7 +210,7 @@ struct PerfEventType {
         }
 
         // Finally, treat event as a function name and return an execution breakpoint
-        return getBreakpoint(name, HW_BREAKPOINT_X, sizeof(long));
+        return NULL; //getBreakpoint(name, HW_BREAKPOINT_X, sizeof(long));
     }
 };
 
